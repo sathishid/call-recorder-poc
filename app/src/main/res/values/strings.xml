@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">call-recorder-demo</string>
+    <string name="device_description">call-recorder-demo</string>
+    <string name="device_admin_label">call-recorder-demo</string>
+    <string name="play_time">HH:MM</string>
+    <string name="stop_service">Stop Service</string>
+    <string name="start_service">Start Service</string>
+</resources>

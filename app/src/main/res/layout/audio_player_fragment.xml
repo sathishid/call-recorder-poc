@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    tools:context=".fragments.AudioPlayer">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_rowSpan="8"
+
+        android:layout_columnSpan="2"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/fragment_audio_player_play_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_stop" />
+
+        <SeekBar
+            android:id="@+id/fragment_audio_player_progress_sb"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:layout_margin="5dp"
+            android:layout_toLeftOf="@id/fragment_audio_player_time_tv"
+            android:layout_toRightOf="@id/fragment_audio_player_play_btn" />
+
+        <TextView
+            android:id="@+id/fragment_audio_player_time_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_centerInParent="true"
+            android:text="@string/play_time" />
+    </RelativeLayout>
+
+</FrameLayout>
