@@ -11,9 +11,25 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.arasoftware.call_recorder_demo.services.ApiService;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Date;
+
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+
+import static com.arasoftware.call_recorder_demo.utils.AppContants.BASE_URL;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.CALL_IN;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.CALL_OUT;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.FILE_PATH;
 
 public class TService extends Service {
     private static final String TAG = "TService";
@@ -24,8 +40,10 @@ public class TService extends Service {
     public static final String ACTION_IN = "android.intent.action.PHONE_STATE";
     public static final String ACTION_OUT = "android.intent.action.NEW_OUTGOING_CALL";
     private TelephonyManager telephonyManager;
-    private boolean isRegistered;
+    private boolean isRegistered = false;
     CallReceiver callReceiver;
+    Retrofit retrofit;
+    ApiService callService;
 
     @Override
     public IBinder onBind(Intent arg0) {
@@ -43,13 +61,19 @@ public class TService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "On Start Starting");
-
+        if (retrofit == null) {
+            retrofit = new Retrofit.Builder()
+                    .baseUrl(BASE_URL)
+                    .build();
+            callService = retrofit.create(ApiService.class);
+        }
         if (!isRegistered) {
             final IntentFilter filter = new IntentFilter();
             filter.addAction(ACTION_OUT);
             filter.addAction(ACTION_IN);
             callReceiver = new CallReceiver();
             getApplicationContext().registerReceiver(callReceiver, filter);
+            isRegistered = true;
             Log.d(TAG, "Registered Broadcast");
         } else {
             Log.d(TAG, "Already Registered Broadcast");
@@ -60,6 +84,7 @@ public class TService extends Service {
 
     private void startRecording(String number) {
         Toast.makeText(this, "Started Recording", Toast.LENGTH_LONG).show();
+        Log.i(TAG, "Started Recorind");
         File sampleDir = new File(AppContants.FILE_PATH);
 
         if (!sampleDir.exists()) {
@@ -75,34 +100,78 @@ public class TService extends Service {
         Log.d(TAG, "File Path" + audiofile.getAbsolutePath());
         recorder = new MediaRecorder();
 
-        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        recorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
         recorder.setOutputFormat(MediaRecorder.OutputFormat.AMR_NB);
         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
         recorder.setOutputFile(audiofile.getAbsolutePath());
         Log.i(TAG, audiofile.getAbsolutePath());
         try {
             recorder.prepare();
-
+            recorder.start();
+            Log.i(TAG, "RECORD Started..");
+            Toast.makeText(this, "RECORDING STARTED", Toast.LENGTH_LONG).show();
+            recordstarted = true;
         } catch (IllegalStateException e) {
             Toast.makeText(this, "illegal" + e.getMessage(), Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Message :" + e.getMessage());
             e.printStackTrace();
         } catch (IOException e) {
             Toast.makeText(this, "iLLegal" + e.getMessage(), Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Message :" + e.getMessage());
             e.printStackTrace();
         }
-        recorder.start();
-        Toast.makeText(this, "iLLegal" + "RECORDING STARTED", Toast.LENGTH_LONG).show();
-        recordstarted = true;
+
+
     }
 
-    private void stopRecording() {
+    private void stopRecording(String fileName, String type) {
         if (recordstarted) {
             recorder.stop();
             recorder.release();
             recorder = null;
             recordstarted = false;
-            Toast.makeText(this, "iLLegal" + "RECORDING STOPPED", Toast.LENGTH_LONG).show();
+            uploadAudio(audiofile.getAbsolutePath(), type);
+            Toast.makeText(this, "RECORDING STOPPED", Toast.LENGTH_LONG).show();
         }
+    }
+
+    public void uploadAudio(String fileName, String strType) {
+        if (fileName == null) fileName = "Recorded";
+        fileName = FILE_PATH + "/6505551212_In380769663748298408.amr";
+        String strId = "1";
+        // create multipart
+        //pass it like this
+        File file = new File(fileName);
+        RequestBody requestFile =
+                RequestBody.create(MediaType.parse("audio/AMR"), file);
+        Log.i(TAG, file.length() + "");
+
+        MultipartBody.Part body =
+                MultipartBody.Part.createFormData("audioFile", file.getName(), requestFile);
+
+        RequestBody id =
+                RequestBody.create(MediaType.parse("text/plain"), strId);
+        RequestBody type =
+                RequestBody.create(MediaType.parse("text/plain"), strType);
+
+        callService.updateCallAudio("call", id, body, type)
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        try {
+                            Log.i(TAG, "" + response.body().string());
+                        } catch (IOException exception) {
+                            Log.e(TAG, "" + exception.getLocalizedMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Log.e(TAG, t.getLocalizedMessage() + "");
+                    }
+                });
+
+
     }
 
 
@@ -203,11 +272,11 @@ public class TService extends Service {
                         onMissedCall(context, savedNumber, callStartTime);
                     } else if (isIncoming) {
                         Toast.makeText(getApplicationContext(), "Call In Stop ", Toast.LENGTH_LONG).show();
-                        stopRecording();
+                        stopRecording(number, CALL_IN);
                         onIncomingCallEnded(context, savedNumber, callStartTime, new Date());
                     } else {
                         Toast.makeText(getApplicationContext(), "Call Out Stop", Toast.LENGTH_LONG).show();
-                        stopRecording();
+                        stopRecording(number, CALL_OUT);
                         onOutgoingCallEnded(context, savedNumber, callStartTime, new Date());
                     }
                     break;
