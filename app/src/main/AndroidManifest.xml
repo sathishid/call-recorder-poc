@@ -34,7 +34,7 @@
             </intent-filter>
         </activity>
         <receiver
-            android:name=".utils.DeviceAdminDemo"
+            android:name=".services.DeviceAdminManager"
             android:description="@string/device_description"
             android:label="@string/device_admin_label"
             android:permission="android.permission.BIND_DEVICE_ADMIN">
@@ -50,7 +50,7 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".utils.TService"></service>
+        <service android:name=".services.CallRecordingService"></service>
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />

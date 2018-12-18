@@ -26,8 +26,8 @@ import android.widget.ListView;
 import com.arasoftware.call_recorder_demo.fragments.AudioPlayerViewModel;
 import com.arasoftware.call_recorder_demo.models.User;
 import com.arasoftware.call_recorder_demo.utils.AppContants;
-import com.arasoftware.call_recorder_demo.utils.DeviceAdminDemo;
-import com.arasoftware.call_recorder_demo.utils.TService;
+import com.arasoftware.call_recorder_demo.services.CallRecordingService;
+import com.arasoftware.call_recorder_demo.services.DeviceAdminManager;
 
 import java.io.File;
 
@@ -63,11 +63,11 @@ public class MainActivity extends BaseActivity {
         Intent intent;
         switch (item.getItemId()) {
             case R.id.menu_item_stop:
-                intent = new Intent(this, TService.class);
+                intent = new Intent(this, CallRecordingService.class);
                 stopService(intent);
                 return (true);
             case R.id.menu_item_start:
-                intent = new Intent(this, TService.class);
+                intent = new Intent(this, CallRecordingService.class);
                 startService(intent);
                 return (true);
             case R.id.menu_item_current_location:
@@ -91,7 +91,7 @@ public class MainActivity extends BaseActivity {
         try {
             // Initiate DevicePolicyManager.
             mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-            mAdminName = new ComponentName(this, DeviceAdminDemo.class);
+            mAdminName = new ComponentName(this, DeviceAdminManager.class);
 
             if (!mDPM.isAdminActive(mAdminName)) {
                 Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
@@ -109,7 +109,7 @@ public class MainActivity extends BaseActivity {
     @Override
     public void onStart() {
         super.onStart();
-        Intent intent = new Intent(this, TService.class);
+        Intent intent = new Intent(this, CallRecordingService.class);
         startService(intent);
 
         listView = findViewById(R.id.activity_main_files_lv);
@@ -185,7 +185,7 @@ public class MainActivity extends BaseActivity {
             case MY_PERMISSIONS_REQUEST_READ_PHONE_STATE:
                 if (permissionAccepted(permissions, grantResults)) {
                     Log.i(TAG, "All permission Accepted");
-                    startService(new Intent(MainActivity.this, TService.class));
+                    startService(new Intent(MainActivity.this, CallRecordingService.class));
                 }
                 break;
 
