@@ -12,7 +12,7 @@ import retrofit2.http.Query;
 public interface ApiService {
     @Multipart
     @POST("app.php?action=call")
-    Call<ResponseBody> updateCallAudio(@Query("action") String action, @Part("user_id") RequestBody id,
+    Call<ResponseBody> updateCallAudio(@Query("action") String action, @Part("userId") RequestBody id,
                                        @Part MultipartBody.Part audio,
-                                       @Part("call_type") RequestBody call_type);
+                                       @Part("status") RequestBody call_type);
 }

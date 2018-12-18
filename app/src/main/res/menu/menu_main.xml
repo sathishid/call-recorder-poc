@@ -14,5 +14,10 @@
         android:icon="@drawable/ic_stop"
         android:title="@string/stop_service"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/menu_item_current_location"
+        android:icon="@drawable/ic_my_location"
+        android:title="@string/my_location"
+        app:showAsAction="always" />
 
 </menu>

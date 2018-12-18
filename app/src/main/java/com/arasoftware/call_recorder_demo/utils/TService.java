@@ -53,8 +53,9 @@ public class TService extends Service {
 
     @Override
     public void onDestroy() {
-        Log.d(TAG, "destroy");
+        Log.d(TAG, "destroying");
         getApplicationContext().unregisterReceiver(callReceiver);
+        Log.d(TAG, "Un Registered Receiver");
         super.onDestroy();
     }
 
@@ -84,8 +85,8 @@ public class TService extends Service {
 
     private void startRecording(String number) {
         Toast.makeText(this, "Started Recording", Toast.LENGTH_LONG).show();
-        Log.i(TAG, "Started Recorind");
-        File sampleDir = new File(AppContants.FILE_PATH);
+        Log.i(TAG, "Started Recording");
+        File sampleDir = getApplicationContext().getFilesDir();
 
         if (!sampleDir.exists()) {
             sampleDir.mkdirs();
@@ -93,9 +94,16 @@ public class TService extends Service {
         try {
             audiofile = File.createTempFile(number, ".amr", sampleDir);
         } catch (IOException e) {
-            Toast.makeText(this, "" + e.getMessage(), Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Unable to Create File (Audio) - " + e.getLocalizedMessage());
             e.printStackTrace();
+            audiofile = null;
         }
+        if (audiofile == null) {
+            Toast.makeText(this, "Unable to Create File (Audio)", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Unable to Create File (Audio)");
+            return;
+        }
+
         Toast.makeText(this, audiofile.getAbsolutePath(), Toast.LENGTH_LONG).show();
         Log.d(TAG, "File Path" + audiofile.getAbsolutePath());
         recorder = new MediaRecorder();
@@ -137,7 +145,7 @@ public class TService extends Service {
 
     public void uploadAudio(String fileName, String strType) {
         if (fileName == null) fileName = "Recorded";
-        fileName = FILE_PATH + "/6505551212_In380769663748298408.amr";
+
         String strId = "1";
         // create multipart
         //pass it like this

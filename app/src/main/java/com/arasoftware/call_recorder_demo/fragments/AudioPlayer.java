@@ -16,14 +16,13 @@ import android.widget.ImageButton;
 import android.widget.SeekBar;
 
 import com.arasoftware.call_recorder_demo.R;
-import com.arasoftware.call_recorder_demo.utils.AppContants;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
 public class AudioPlayer extends Fragment implements MediaPlayer.OnPreparedListener {
-    private static final String TAG = "audio_player";
+    private static final String TAG = "AudioPlayer";
     private AudioPlayerViewModel mViewModel;
     private MediaPlayer mediaPlayer;
     ImageButton button_play;
@@ -44,7 +43,7 @@ public class AudioPlayer extends Fragment implements MediaPlayer.OnPreparedListe
         button_play = view.findViewById(R.id.fragment_audio_player_play_btn);
         seekBar_progress = view.findViewById(R.id.fragment_audio_player_progress_sb);
         button_play.setTag(TAG_PLAY);
-        cacheDir = new File(AppContants.FILE_PATH);
+        cacheDir = this.getContext().getApplicationContext().getFilesDir();
         button_play.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -75,19 +74,22 @@ public class AudioPlayer extends Fragment implements MediaPlayer.OnPreparedListe
                 mediaPlayer.release();
             }
             File file = new File(cacheDir, fileName);
-            Log.i(TAG, file.getPath());
+            Log.i(TAG, file.getPath() + ": File Exists:" + file.exists());
+
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setOnErrorListener(onErrorListener);
             mediaPlayer.setOnCompletionListener(onCompletionListener);
+            mediaPlayer.setOnPreparedListener(this);
+
             seekBar_progress.setOnSeekBarChangeListener(onSeekBarChangeListener);
             seekBar_progress.setMax(mediaPlayer.getDuration());
-            mediaPlayer.setOnPreparedListener(this);
+
             String audioFile = file.getPath();
             Log.d(TAG, audioFile);
-            FileInputStream fileInputStream=new FileInputStream(audioFile);
+            FileInputStream fileInputStream = new FileInputStream(audioFile);
             mediaPlayer.setDataSource(fileInputStream.getFD());
 
-            mediaPlayer.prepare();
+            mediaPlayer.prepareAsync();
             return true;
         } catch (IllegalStateException exception) {
             Log.e(TAG, "Illegal State-" + exception.getMessage());
@@ -118,17 +120,7 @@ public class AudioPlayer extends Fragment implements MediaPlayer.OnPreparedListe
     }
 
     private void startPlayer(String fileName) {
-        if (button_play.getTag().toString().compareTo(TAG_STOP + "") == 0) {
-            if (mediaPlayer != null)
-                mediaPlayer.stop();
-        }
-        if (!InitAudioControls(fileName)) {
-            showSnackBar(button_play, "Unable to Start Player");
-            Log.e(TAG, "Unable to start Player");
-            return;
-        }
-
-
+        InitAudioControls(fileName);
     }
 
     private Handler seekbarUpdateHandler = new Handler();
@@ -179,6 +171,7 @@ public class AudioPlayer extends Fragment implements MediaPlayer.OnPreparedListe
 
     @Override
     public void onPrepared(MediaPlayer mp) {
+        Log.i(TAG, "On Prepared..");
         mp.start();
         showSnackBar(button_play, mp.getDuration() + "");
         seekbarUpdateHandler.postDelayed(updateSeekbar, 0);

@@ -11,9 +11,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Menu;
@@ -24,13 +24,14 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.arasoftware.call_recorder_demo.fragments.AudioPlayerViewModel;
+import com.arasoftware.call_recorder_demo.models.User;
 import com.arasoftware.call_recorder_demo.utils.AppContants;
 import com.arasoftware.call_recorder_demo.utils.DeviceAdminDemo;
 import com.arasoftware.call_recorder_demo.utils.TService;
 
 import java.io.File;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity {
     public static final String TAG = "MainActivity";
     private static final int MY_PERMISSIONS_REQUEST_READ_PHONE_STATE = 101;
     private String[] permissions = new String[]{
@@ -69,6 +70,15 @@ public class MainActivity extends AppCompatActivity {
                 intent = new Intent(this, TService.class);
                 startService(intent);
                 return (true);
+            case R.id.menu_item_current_location:
+                User user = AppContants.getCurrentUser();
+                if(user.getLatitude()==0){
+                    Snackbar.make(listView, "Try again after few min..", Snackbar.LENGTH_LONG).show();
+                    return true;
+                }
+                String latLng = user.getLatitude() + "," + user.getLongitude();
+                Snackbar.make(listView, latLng, Snackbar.LENGTH_LONG).show();
+                return true;
         }
         return false;
     }
@@ -126,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String[] getFiles() {
-        File cacheDir = new File(AppContants.FILE_PATH);
+        File cacheDir = getApplicationContext().getFilesDir();
         String[] fileNames = cacheDir.list();
         return fileNames;
     }
