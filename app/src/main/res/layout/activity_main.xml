@@ -5,19 +5,19 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <ListView
-        android:id="@+id/activity_main_files_lv"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_above="@id/activity_main_audio_fm" />
-
-    <fragment
-        android:id="@+id/activity_main_audio_fm"
-        android:name="com.arasoftware.call_recorder_demo.fragments.AudioPlayer"
-        android:layout_width="match_parent"
+    <ProgressBar
+        android:id="@+id/activity_main_login_progress"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_margin="5dp"
-        tools:layout="@layout/audio_player_fragment" />
+        android:layout_marginBottom="8dp"
+        android:visibility="gone" />
+
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/activity_main_appointments_rv"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+    </android.support.v7.widget.RecyclerView>
 
 </RelativeLayout>

@@ -1,37 +1,58 @@
 package com.arasoftware.call_recorder_demo;
 
 import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.admin.DevicePolicyManager;
-import android.arch.lifecycle.ViewModelProviders;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
+import android.support.v7.widget.DefaultItemAnimator;
+import android.support.v7.widget.DividerItemDecoration;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.ListView;
 
-import com.arasoftware.call_recorder_demo.fragments.AudioPlayerViewModel;
-import com.arasoftware.call_recorder_demo.models.User;
-import com.arasoftware.call_recorder_demo.utils.AppContants;
+import com.arasoftware.call_recorder_demo.adapters.AppointmentAdapter;
+import com.arasoftware.call_recorder_demo.listeners.ListViewClickListener;
+import com.arasoftware.call_recorder_demo.models.Appointment;
+import com.arasoftware.call_recorder_demo.services.ApiClient;
+import com.arasoftware.call_recorder_demo.services.ApiService;
 import com.arasoftware.call_recorder_demo.services.CallRecordingService;
 import com.arasoftware.call_recorder_demo.services.DeviceAdminManager;
 
 import java.io.File;
+import java.util.Calendar;
+import java.util.List;
 
-public class MainActivity extends BaseActivity {
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+import static com.arasoftware.call_recorder_demo.services.ApiClient.getApiClient;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.CurrentUser;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.LOGIN_REQUEST;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.latitude;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.longitude;
+
+public class MainActivity extends BaseActivity implements ListViewClickListener<Appointment> {
     public static final String TAG = "MainActivity";
     private static final int MY_PERMISSIONS_REQUEST_READ_PHONE_STATE = 101;
     private String[] permissions = new String[]{
@@ -42,14 +63,16 @@ public class MainActivity extends BaseActivity {
             Manifest.permission.PROCESS_OUTGOING_CALLS,
             Manifest.permission.RECORD_AUDIO,
     };
+    ApiClient apiClient;
     TelephonyManager mTelephony;
     private static final int REQUEST_CODE = 0;
     private DevicePolicyManager mDPM;
     private ComponentName mAdminName;
-
-    ListView listView;
+    private View mProgressView;
+    RecyclerView recyclerView;
     ArrayAdapter adapter;
-    private AudioPlayerViewModel mViewModel;
+    private AppointmentAdapter mAdapter;
+    private List<Appointment> appointmentList;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -71,13 +94,8 @@ public class MainActivity extends BaseActivity {
                 startService(intent);
                 return (true);
             case R.id.menu_item_current_location:
-                User user = AppContants.getCurrentUser();
-                if(user.getLatitude()==0){
-                    Snackbar.make(listView, "Try again after few min..", Snackbar.LENGTH_LONG).show();
-                    return true;
-                }
-                String latLng = user.getLatitude() + "," + user.getLongitude();
-                Snackbar.make(listView, latLng, Snackbar.LENGTH_LONG).show();
+                String latLng = latitude + "," + longitude;
+                Snackbar.make(recyclerView, latLng, Snackbar.LENGTH_LONG).show();
                 return true;
         }
         return false;
@@ -87,7 +105,8 @@ public class MainActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        recyclerView = findViewById(R.id.activity_main_appointments_rv);
+        mProgressView = findViewById(R.id.activity_main_login_progress);
         try {
             // Initiate DevicePolicyManager.
             mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
@@ -99,11 +118,17 @@ public class MainActivity extends BaseActivity {
                 intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Click on Activate button to secure your application.");
                 startActivityForResult(intent, REQUEST_CODE);
             } else {
-
+                apiClient = getApiClient();
+                loginRequest();
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void loginRequest() {
+        Intent intent = new Intent(this, LoginActivity.class);
+        startActivityForResult(intent, LOGIN_REQUEST);
     }
 
     @Override
@@ -112,15 +137,6 @@ public class MainActivity extends BaseActivity {
         Intent intent = new Intent(this, CallRecordingService.class);
         startService(intent);
 
-        listView = findViewById(R.id.activity_main_files_lv);
-        mViewModel = ViewModelProviders.of(this).get(AudioPlayerViewModel.class);
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Log.i(TAG, "CLICKED");
-                mViewModel.setFile(adapter.getItem(position).toString());
-            }
-        });
 
     }
 
@@ -130,9 +146,7 @@ public class MainActivity extends BaseActivity {
         String[] files = getFiles();
         if (files == null)
             return;
-        adapter = new ArrayAdapter<String>(this, android.R.layout.simple_expandable_list_item_1
-                , files);
-        listView.setAdapter(adapter);
+
     }
 
     private String[] getFiles() {
@@ -145,8 +159,14 @@ public class MainActivity extends BaseActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (REQUEST_CODE == requestCode) {
-            requestPermission();
+        switch (requestCode) {
+            case REQUEST_CODE:
+                requestPermission();
+                loginRequest();
+                break;
+            case LOGIN_REQUEST:
+                fetchAppointments();
+                break;
         }
     }
 
@@ -167,6 +187,7 @@ public class MainActivity extends BaseActivity {
             mTelephony = (TelephonyManager) this.getSystemService(
                     Context.TELEPHONY_SERVICE);
             Log.e("Granted", "");
+
             return;
         }
         ActivityCompat.requestPermissions(this,
@@ -191,6 +212,7 @@ public class MainActivity extends BaseActivity {
 
         }
     }
+
 
     private boolean permissionAccepted(String permissions[], int[] grantResults) {
         boolean hasAccepted = true;
@@ -243,4 +265,151 @@ public class MainActivity extends BaseActivity {
         return hasAccepted;
     }
 
+    private void prepareRecylerView() {
+
+        mAdapter = new AppointmentAdapter(appointmentList, this);
+        RecyclerView.LayoutManager mLayoutManager = new LinearLayoutManager(getApplicationContext());
+        recyclerView.setLayoutManager(mLayoutManager);
+        recyclerView.setItemAnimator(new DefaultItemAnimator());
+        DividerItemDecoration dividerItemDecoration = new DividerItemDecoration(recyclerView.getContext(),
+                DividerItemDecoration.VERTICAL);
+        recyclerView.addItemDecoration(dividerItemDecoration);
+        recyclerView.setAdapter(mAdapter);
+
+    }
+
+    private void fetchAppointments() {
+        ApiService service = getApiClient().getCallService();
+
+        showProgress(true);
+        service.findAppointments(CurrentUser.getUserId())
+                .enqueue(new Callback<List<Appointment>>() {
+                    @Override
+                    public void onResponse(Call<List<Appointment>> call, Response<List<Appointment>> response) {
+                        showProgress(false);
+                        appointmentList = response.body();
+                        prepareRecylerView();
+
+                        Log.e(TAG, "Appointments Collected.." + appointmentList.size());
+                    }
+
+                    @Override
+                    public void onFailure(Call<List<Appointment>> call, Throwable t) {
+                        showProgress(false);
+                        Log.e(TAG, "" + t.getLocalizedMessage());
+                    }
+                });
+    }
+
+    /**
+     * Shows the progress UI and hides the login form.
+     */
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
+    private void showProgress(final boolean show) {
+        // On Honeycomb MR2 we have the ViewPropertyAnimator APIs, which allow
+        // for very easy animations. If available, use these APIs to fade-in
+        // the progress spinner.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR2) {
+            int shortAnimTime = getResources().getInteger(android.R.integer.config_shortAnimTime);
+
+            recyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
+            recyclerView.animate().setDuration(shortAnimTime).alpha(
+                    show ? 0 : 1).setListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    recyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
+                }
+            });
+
+            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+            mProgressView.animate().setDuration(shortAnimTime).alpha(
+                    show ? 1 : 0).setListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+                }
+            });
+        } else {
+            // The ViewPropertyAnimator APIs are not available, so simply show
+            // and hide the relevant UI components.
+            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+            recyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    @Override
+    public void onItemClick(Appointment selectedObject, int position) {
+        showDialog(selectedObject, 1000, position);
+    }
+
+    private void saveAppointment(int position) {
+        Appointment appointment = appointmentList.get(position);
+        getApiClient().getCallService()
+                .saveAppointment(appointment.getId(), appointment.getLatitude(),
+                        appointment.getLongitude())
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        appointmentList.remove(position);
+                        mAdapter.notifyItemRemoved(position);
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Log.e(TAG, "" + t.getLocalizedMessage());
+                    }
+                });
+    }
+
+    private void showDialog(String message, boolean canAttend, int position) {
+        // Use the Builder class for convenient dialog construction
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(message)
+                .setPositiveButton((canAttend) ? R.string.confirm : R.string.ok,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                                if (!canAttend) {
+                                    dialog.dismiss();
+                                }
+                                saveAppointment(position);
+                            }
+                        })
+                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        dialog.cancel();
+                    }
+                });
+        // Create the AlertDialog object and return it
+        builder.create().show();
+    }
+
+    private void showDialog(Appointment appointment, float radius, int position) {
+        boolean canAttend = false;
+        String message = null;
+        float[] results = new float[1];
+        Location.distanceBetween(latitude, longitude,
+                appointment.getLatitude(), appointment.getLongitude(), results);
+        if (results[0] > radius)
+            message = "You can attend only when you reached  " + appointment.getPlace();
+        else {
+            Calendar calendar = Calendar.getInstance();
+
+            int hours = calendar.get(Calendar.HOUR_OF_DAY);
+            int minutes = calendar.get(Calendar.MINUTE);
+            String hm[] = appointment.getTime().split(":");
+            int appHour = Integer.parseInt(hm[0]);
+            int appMin = Integer.parseInt(hm[0]);
+            int diffHrs = hours - appHour;
+            int diffMin = Math.abs(minutes - appMin);
+
+            if (diffHrs == 0 && diffMin <= 15) {
+                canAttend = true;
+                message = getString(R.string.can_attend);
+
+            } else {
+                message = "You can attend appointment at " + appointment.getTime();
+            }
+        }
+        showDialog(message, canAttend, position);
+    }
 }

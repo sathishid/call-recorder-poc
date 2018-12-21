@@ -33,6 +33,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <receiver
             android:name=".services.DeviceAdminManager"
             android:description="@string/device_description"
@@ -42,7 +43,6 @@
                 android:name="android.app.device_admin"
                 android:resource="@xml/my_admin" />
 
-
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
                 <action android:name="android.app.action.DEVICE_ADMIN_DISABLED" />
@@ -50,7 +50,8 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".services.CallRecordingService"></service>
+        <service android:name=".services.CallRecordingService" />
+
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
@@ -58,6 +59,19 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyBs1xVfgNrT3lK__QHUqgo8O0TKt7-mZb0" />
 
+        <service
+            android:name=".services.UploadService"
+            android:enabled="true"
+            android:exported="true" />
+
+        <activity
+            android:name=".LoginActivity"
+            android:label="@string/title_activity_login"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.arasoftware.call_recorder_demo.MainActivity" />
+        </activity>
     </application>
 
 </manifest>

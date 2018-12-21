@@ -1,16 +1,22 @@
 package com.arasoftware.call_recorder_demo.models;
 
+import android.util.Log;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
 public class User {
-    private String userId;
+    private int userId;
     private String userName;
     private double latitude;
     private double longitude;
 
-    public String getUserId() {
+
+    public int getUserId() {
         return userId;
     }
 
-    public void setUserId(String userId) {
+    public void setUserId(int userId) {
         this.userId = userId;
     }
 
@@ -36,5 +42,19 @@ public class User {
 
     public void setLongitude(double longitude) {
         this.longitude = longitude;
+    }
+
+    public static User fromJson(String s) {
+
+        try {
+            JSONObject jsonObject = new JSONObject(s);
+            User user = new User();
+            user.setUserId(jsonObject.getInt("userid"));
+            return user;
+
+        } catch (JSONException jsonException) {
+            Log.e("USER", jsonException.getLocalizedMessage() + "");
+        }
+        return null;
     }
 }

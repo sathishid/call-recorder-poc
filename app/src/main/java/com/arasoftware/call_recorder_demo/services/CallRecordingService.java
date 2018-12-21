@@ -43,25 +43,14 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.arasoftware.call_recorder_demo.services.ApiService;
+import com.arasoftware.call_recorder_demo.utils.AppContants;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Date;
 
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.RequestBody;
-import okhttp3.ResponseBody;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-
-import static com.arasoftware.call_recorder_demo.utils.AppContants.BASE_URL;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.CALL_IN;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.CALL_OUT;
-import static com.arasoftware.call_recorder_demo.utils.AppContants.FILE_PATH;
 
 public class CallRecordingService extends Service {
     private static final String TAG = "CallRecordingService";
@@ -74,8 +63,7 @@ public class CallRecordingService extends Service {
     private TelephonyManager telephonyManager;
     private boolean isRegistered = false;
     CallReceiver callReceiver;
-    Retrofit retrofit;
-    ApiService callService;
+
 
     @Override
     public IBinder onBind(Intent arg0) {
@@ -94,12 +82,7 @@ public class CallRecordingService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "On Start Starting");
-        if (retrofit == null) {
-            retrofit = new Retrofit.Builder()
-                    .baseUrl(BASE_URL)
-                    .build();
-            callService = retrofit.create(ApiService.class);
-        }
+
         if (!isRegistered) {
             final IntentFilter filter = new IntentFilter();
             filter.addAction(ACTION_OUT);
@@ -118,21 +101,21 @@ public class CallRecordingService extends Service {
     private void startRecording(String number) {
         Toast.makeText(this, "Started Recording", Toast.LENGTH_LONG).show();
         Log.i(TAG, "Started Recording");
-        File sampleDir = getApplicationContext().getFilesDir();
+        Intent intent = new Intent(getBaseContext(), UploadService.class);
+        stopService(intent);
+        File sampleDir = AppContants.getFilePath(this);
 
         if (!sampleDir.exists()) {
             sampleDir.mkdirs();
         }
         try {
-            audiofile = File.createTempFile(number, ".amr", sampleDir);
+            Date date = new Date();
+            long unixTimeStamp = date.getTime() / 1000L;
+            audiofile = File.createTempFile(number, ".mp3", sampleDir);
         } catch (IOException e) {
             Log.e(TAG, "Unable to Create File (Audio) - " + e.getLocalizedMessage());
             e.printStackTrace();
             audiofile = null;
-        }
-        if (audiofile == null) {
-            Toast.makeText(this, "Unable to Create File (Audio)", Toast.LENGTH_LONG).show();
-            Log.e(TAG, "Unable to Create File (Audio)");
             return;
         }
 
@@ -141,9 +124,16 @@ public class CallRecordingService extends Service {
         recorder = new MediaRecorder();
 
         recorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
-        recorder.setOutputFormat(MediaRecorder.OutputFormat.AMR_NB);
-        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
         recorder.setOutputFile(audiofile.getAbsolutePath());
+        recorder.setOnErrorListener(new MediaRecorder.OnErrorListener() {
+            @Override
+            public void onError(MediaRecorder mr, int what, int extra) {
+                Log.e(TAG,"What:"+what+"Extra:"+extra);
+                recordstarted=false;
+            }
+        });
         Log.i(TAG, audiofile.getAbsolutePath());
         try {
             recorder.prepare();
@@ -170,48 +160,10 @@ public class CallRecordingService extends Service {
             recorder.release();
             recorder = null;
             recordstarted = false;
-            uploadAudio(audiofile.getAbsolutePath(), type);
+            Intent intent = new Intent(getBaseContext(), UploadService.class);
+            startService(intent);
             Toast.makeText(this, "RECORDING STOPPED", Toast.LENGTH_LONG).show();
         }
-    }
-
-    public void uploadAudio(String fileName, String strType) {
-        if (fileName == null) fileName = "Recorded";
-
-        String strId = "1";
-        // create multipart
-        //pass it like this
-        File file = new File(fileName);
-        RequestBody requestFile =
-                RequestBody.create(MediaType.parse("audio/AMR"), file);
-        Log.i(TAG, file.length() + "");
-
-        MultipartBody.Part body =
-                MultipartBody.Part.createFormData("audioFile", file.getName(), requestFile);
-
-        RequestBody id =
-                RequestBody.create(MediaType.parse("text/plain"), strId);
-        RequestBody type =
-                RequestBody.create(MediaType.parse("text/plain"), strType);
-
-        callService.updateCallAudio("call", id, body, type)
-                .enqueue(new Callback<ResponseBody>() {
-                    @Override
-                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                        try {
-                            Log.i(TAG, "" + response.body().string());
-                        } catch (IOException exception) {
-                            Log.e(TAG, "" + exception.getLocalizedMessage());
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<ResponseBody> call, Throwable t) {
-                        Log.e(TAG, t.getLocalizedMessage() + "");
-                    }
-                });
-
-
     }
 
 
@@ -228,14 +180,14 @@ public class CallRecordingService extends Service {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "OnReceive Started.." + intent.getAction());
-
-            savedNumber = intent.getExtras().getString("android.intent.extra.PHONE_NUMBER");
+            String number = null;
+            number = intent.getExtras().getString("android.intent.extra.PHONE_NUMBER");
             //We listen to two intents.  The new outgoing call only tells us of an outgoing call.  We use it to get the number.
             if (intent.getAction().equals("android.intent.action.NEW_OUTGOING_CALL")) {
-                savedNumber = intent.getExtras().getString("android.intent.extra.PHONE_NUMBER");
+                number = intent.getExtras().getString("android.intent.extra.PHONE_NUMBER");
             } else {
                 String stateStr = intent.getExtras().getString(TelephonyManager.EXTRA_STATE);
-                String number = intent.getExtras().getString(TelephonyManager.EXTRA_INCOMING_NUMBER);
+                number = intent.getExtras().getString(TelephonyManager.EXTRA_INCOMING_NUMBER);
 
                 int state = 0;
                 if (stateStr.equals(TelephonyManager.EXTRA_STATE_IDLE)) {
@@ -249,6 +201,8 @@ public class CallRecordingService extends Service {
                     number = "Record";
                 } else if (number == null) {
                     number = savedNumber;
+                } else {
+                    savedNumber = number;
                 }
 
                 onCallStateChanged(context, state, number);

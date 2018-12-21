@@ -25,6 +25,8 @@ import com.google.android.gms.tasks.Task;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.LOCATION_PERMISSION_REQUEST;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.PLAY_SERVICE_REQUEST;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.getCurrentUser;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.latitude;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.longitude;
 
 public class BaseActivity extends AppCompatActivity {
     private static String TAG = "BaseActivity";
@@ -61,10 +63,9 @@ public class BaseActivity extends AppCompatActivity {
                     if (placeLikelihoods.getCount() > 0) {
                         PlaceLikelihood likelihood = placeLikelihoods.get(0);
                         LatLng latLng = likelihood.getPlace().getLatLng();
-                        User currentUser = getCurrentUser();
-                        currentUser.setLatitude(latLng.latitude);
-                        currentUser.setLongitude(latLng.longitude);
-                        Log.i(TAG, "Latitude:" + latLng.latitude + " Longitude:" + latLng.longitude);
+                        latitude=latLng.latitude;
+                        longitude=latLng.longitude;
+                        Log.i(TAG, "Latitude:" + latitude + " Longitude:" + longitude);
                         placeLikelihoods.release();
                     }
                 }
@@ -77,7 +78,7 @@ public class BaseActivity extends AppCompatActivity {
                 }
             });
         } catch (SecurityException security) {
-            Log.e(TAG, security.getLocalizedMessage());
+            Log.e(TAG, ""+security.getLocalizedMessage());
             security.printStackTrace();
         }
     }
