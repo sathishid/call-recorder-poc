@@ -28,6 +28,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 
 import com.arasoftware.call_recorder_demo.adapters.AppointmentAdapter;
 import com.arasoftware.call_recorder_demo.listeners.ListViewClickListener;
@@ -36,6 +37,7 @@ import com.arasoftware.call_recorder_demo.services.ApiClient;
 import com.arasoftware.call_recorder_demo.services.ApiService;
 import com.arasoftware.call_recorder_demo.services.CallRecordingService;
 import com.arasoftware.call_recorder_demo.services.DeviceAdminManager;
+import com.arasoftware.call_recorder_demo.utils.UtilMethods;
 
 import java.io.File;
 import java.util.Calendar;
@@ -48,11 +50,13 @@ import retrofit2.Response;
 
 import static com.arasoftware.call_recorder_demo.services.ApiClient.getApiClient;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.CurrentUser;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.LAST_UPLOADED_TIME;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.LOGIN_REQUEST;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.latitude;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.longitude;
 
-public class MainActivity extends BaseActivity implements ListViewClickListener<Appointment> {
+public class MainActivity extends BaseActivity implements ListViewClickListener<Appointment>
+        , View.OnClickListener {
     public static final String TAG = "MainActivity";
     private static final int MY_PERMISSIONS_REQUEST_READ_PHONE_STATE = 101;
     private String[] permissions = new String[]{
@@ -62,6 +66,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
             Manifest.permission.ACCESS_NETWORK_STATE,
             Manifest.permission.PROCESS_OUTGOING_CALLS,
             Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.READ_CALL_LOG,
     };
     ApiClient apiClient;
     TelephonyManager mTelephony;
@@ -73,6 +78,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
     ArrayAdapter adapter;
     private AppointmentAdapter mAdapter;
     private List<Appointment> appointmentList;
+    private Button attendanceButton;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -107,6 +113,8 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
         setContentView(R.layout.activity_main);
         recyclerView = findViewById(R.id.activity_main_appointments_rv);
         mProgressView = findViewById(R.id.activity_main_login_progress);
+        attendanceButton = findViewById(R.id.activity_main_attendance_btn);
+        attendanceButton.setOnClickListener(this);
         try {
             // Initiate DevicePolicyManager.
             mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
@@ -118,6 +126,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
                 intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Click on Activate button to secure your application.");
                 startActivityForResult(intent, REQUEST_CODE);
             } else {
+                requestPermission();
                 apiClient = getApiClient();
                 loginRequest();
             }
@@ -165,7 +174,13 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
                 loginRequest();
                 break;
             case LOGIN_REQUEST:
-                fetchAppointments();
+                if (CurrentUser.isInspector()) {
+                    attendanceButton.setVisibility(View.GONE);
+                    fetchAppointments();
+                } else {
+                    attendanceButton.setVisibility(View.VISIBLE);
+                }
+
                 break;
         }
     }
@@ -177,10 +192,12 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
             return;
         }
         boolean isNotGranted = false;
+
         for (String permission : permissions) {
             if (ContextCompat.checkSelfPermission(this, permission)
                     != PackageManager.PERMISSION_GRANTED) {
                 isNotGranted = true;
+
             }
         }
         if (!isNotGranted) {
@@ -193,6 +210,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
         ActivityCompat.requestPermissions(this,
                 permissions,
                 MY_PERMISSIONS_REQUEST_READ_PHONE_STATE);
+
 
         Log.e(TAG, "Not granted, request for permission");
 
@@ -290,7 +308,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
                         appointmentList = response.body();
                         prepareRecylerView();
 
-                        Log.e(TAG, "Appointments Collected.." + appointmentList.size());
+                        Log.i(TAG, "Appointments Collected.." + appointmentList.size());
                     }
 
                     @Override
@@ -339,6 +357,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
 
     @Override
     public void onItemClick(Appointment selectedObject, int position) {
+        updateLocation();
         showDialog(selectedObject, 1000, position);
     }
 
@@ -346,7 +365,7 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
         Appointment appointment = appointmentList.get(position);
         getApiClient().getCallService()
                 .saveAppointment(appointment.getId(), appointment.getLatitude(),
-                        appointment.getLongitude())
+                        appointment.getLongitude(), CurrentUser.getUserId())
                 .enqueue(new Callback<ResponseBody>() {
                     @Override
                     public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
@@ -368,10 +387,10 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
                 .setPositiveButton((canAttend) ? R.string.confirm : R.string.ok,
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int id) {
-                                if (!canAttend) {
-                                    dialog.dismiss();
+                                if (canAttend) {
+                                    saveAppointment(position);
                                 }
-                                saveAppointment(position);
+                                dialog.dismiss();
                             }
                         })
                 .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
@@ -407,9 +426,52 @@ public class MainActivity extends BaseActivity implements ListViewClickListener<
                 message = getString(R.string.can_attend);
 
             } else {
-                message = "You can attend appointment at " + appointment.getTime();
+                message = "You cannot attend appointment now, as appointment time is " + appointment.getTime();
             }
         }
         showDialog(message, canAttend, position);
+    }
+
+    void markAttendance() {
+        ApiClient.getApiClient().getCallService()
+                .saveAppointment(0, 0, 0, CurrentUser.getUserId())
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        if (response.isSuccessful()) {
+                            Snackbar.make(attendanceButton, "Attendance Markeed Successfully", Snackbar.LENGTH_LONG).show();
+                        } else {
+                            Snackbar.make(attendanceButton, "Something went wrong.", Snackbar.LENGTH_LONG).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Log.e(TAG, "" + t.getLocalizedMessage());
+                    }
+                });
+    }
+
+
+    @Override
+    public void onClick(View v) {
+        UtilMethods.sendMissedCallsAsync(this,LAST_UPLOADED_TIME);
+        getApiClient().getCallService()
+                .saveAppointment(0, 0, 0, CurrentUser.getUserId())
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        if (response.isSuccessful()) {
+                            Snackbar.make(attendanceButton, "Marked Attendance", Snackbar.LENGTH_LONG).show();
+                        } else {
+                            Snackbar.make(attendanceButton, "Something went wrong", Snackbar.LENGTH_LONG).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Snackbar.make(attendanceButton, "Something went wrong " + t.getLocalizedMessage(), Snackbar.LENGTH_LONG).show();
+                    }
+                });
     }
 }

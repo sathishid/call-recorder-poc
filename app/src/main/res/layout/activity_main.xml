@@ -13,10 +13,20 @@
         android:layout_marginBottom="8dp"
         android:visibility="gone" />
 
+    <Button
+        android:id="@+id/activity_main_attendance_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:text="@string/mark_attendance"
+
+        />
+
     <android.support.v7.widget.RecyclerView
         android:id="@+id/activity_main_appointments_rv"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:layout_below="@id/activity_main_attendance_btn">
 
     </android.support.v7.widget.RecyclerView>
 

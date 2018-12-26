@@ -27,5 +27,6 @@
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="can_attend">Yes, You can attend the appointment.</string>
     <string name="invalid_credential">Invalid Username or Password</string>
+    <string name="mark_attendance">Mark Attendance</string>
 
 </resources>

@@ -2,15 +2,24 @@ package com.arasoftware.call_recorder_demo.models;
 
 import android.util.Log;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.annotations.SerializedName;
 
 public class User {
+    @SerializedName("userid")
     private int userId;
+    @SerializedName("username")
     private String userName;
-    private double latitude;
-    private double longitude;
+    private String role;
 
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
 
     public int getUserId() {
         return userId;
@@ -28,31 +37,21 @@ public class User {
         this.userName = userName;
     }
 
-    public double getLatitude() {
-        return latitude;
-    }
-
-    public void setLatitude(double latitude) {
-        this.latitude = latitude;
-    }
-
-    public double getLongitude() {
-        return longitude;
-    }
-
-    public void setLongitude(double longitude) {
-        this.longitude = longitude;
+    public boolean isInspector(){
+        if(role==null)
+            return false;
+        return role.compareTo("inspector")==0;
     }
 
     public static User fromJson(String s) {
 
         try {
-            JSONObject jsonObject = new JSONObject(s);
-            User user = new User();
-            user.setUserId(jsonObject.getInt("userid"));
+            Gson gson = new Gson();
+            User user= gson.fromJson(s, User.class);
+            if(user.role==null)
+                return null;
             return user;
-
-        } catch (JSONException jsonException) {
+        } catch (JsonSyntaxException jsonException) {
             Log.e("USER", jsonException.getLocalizedMessage() + "");
         }
         return null;

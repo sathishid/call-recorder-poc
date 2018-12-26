@@ -10,10 +10,11 @@ import android.os.IBinder;
 import android.util.Log;
 
 import com.arasoftware.call_recorder_demo.utils.AppContants;
+import com.arasoftware.call_recorder_demo.utils.UtilMethods;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
+import java.util.Date;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -27,7 +28,8 @@ import retrofit2.Retrofit;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.BASE_URL;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.CALL_IN;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.CALL_OUT;
-import static com.arasoftware.call_recorder_demo.utils.AppContants.FILE_PATH;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.CurrentUser;
+import static com.arasoftware.call_recorder_demo.utils.AppContants.LAST_UPLOADED_TIME;
 
 public class UploadService extends Service {
     private static final String TAG = "UploadService";
@@ -52,11 +54,22 @@ public class UploadService extends Service {
             }
             stopNow = false;
             beginUploadAsync();
-            return START_STICKY;
+            checkAndSaveMissedCalls();
+            return START_NOT_STICKY;
         } else {
             Log.i(TAG, "Internet not connected.");
         }
         return START_NOT_STICKY;
+    }
+
+    private void checkAndSaveMissedCalls() {
+        Date today = new Date();
+        int month = today.getMonth();
+        if (LAST_UPLOADED_TIME.getYear() == 2010) {
+            UtilMethods.sendMissedCallsAsync(this, LAST_UPLOADED_TIME);
+        } else {
+
+        }
     }
 
     @Override
@@ -78,6 +91,7 @@ public class UploadService extends Service {
     }
 
     private void beginUploadAsync() {
+        if(CurrentUser==null)return;
         if (uploading) return;
 
         String[] fileNames;
@@ -107,12 +121,13 @@ public class UploadService extends Service {
             String type = CALL_IN;
             for (String fileName : fileNames) {
                 if (stopNow) break;
-                if(fileName.contains("_")) {
+                if (fileName.contains("_")) {
                     String mobileTypeSplit[] = fileName.split("_");
                     type = (mobileTypeSplit[1].contains(CALL_IN)) ? CALL_IN : CALL_OUT;
                 }
-                File file=new File(cacheDir,fileName);
-                uploadAudio(file.getAbsolutePath(), type);
+                File file = new File(cacheDir, fileName);
+                if (file.canWrite())
+                    uploadAudio(file.getAbsolutePath(), type);
             }
 
             return "Success";
@@ -121,8 +136,11 @@ public class UploadService extends Service {
         @Override
         protected void onPostExecute(String s) {
             uploading = false;
+            Intent uploadIntent = new Intent(getApplicationContext(), UploadService.class);
+            getApplicationContext().stopService(uploadIntent);
             super.onPostExecute(s);
         }
+
 
         @Override
         protected void onProgressUpdate(String... values) {
@@ -134,7 +152,7 @@ public class UploadService extends Service {
             Log.i(TAG, "Uploading File " + fileName);
             if (fileName == null) return;
 
-            String strId = "1";
+            String strId = CurrentUser.getUserId()+"";
             // create multipart
             //pass it like this
             File file = new File(fileName);
@@ -150,12 +168,12 @@ public class UploadService extends Service {
             RequestBody type =
                     RequestBody.create(MediaType.parse("text/plain"), strType);
 
-            callService.updateCallAudio( id, body, type)
+            callService.updateCallAudio(id, body, type)
                     .enqueue(new Callback<ResponseBody>() {
                         @Override
                         public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                             try {
-                               file.delete();
+                                file.delete();
                                 Log.i(TAG, fileName + " " + response.body().string());
                             } catch (IOException exception) {
                                 Log.e(TAG, "" + exception.getLocalizedMessage());

@@ -3,43 +3,29 @@ package com.arasoftware.call_recorder_demo;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
-import com.arasoftware.call_recorder_demo.models.User;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.location.places.GeoDataClient;
-import com.google.android.gms.location.places.PlaceDetectionClient;
-import com.google.android.gms.location.places.PlaceLikelihood;
-import com.google.android.gms.location.places.PlaceLikelihoodBufferResponse;
-import com.google.android.gms.location.places.Places;
-import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 
 import static com.arasoftware.call_recorder_demo.utils.AppContants.LOCATION_PERMISSION_REQUEST;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.PLAY_SERVICE_REQUEST;
-import static com.arasoftware.call_recorder_demo.utils.AppContants.getCurrentUser;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.latitude;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.longitude;
 
 public class BaseActivity extends AppCompatActivity {
     private static String TAG = "BaseActivity";
-    public GeoDataClient mGeoDataClient;
-    public PlaceDetectionClient mPlaceDetectionClient;
-
 
     private void init(Activity activityCompat) {
-        if (mGeoDataClient == null)
-            mGeoDataClient = Places.getGeoDataClient(activityCompat, null);
-
-        if (mPlaceDetectionClient == null)
-            mPlaceDetectionClient = Places.getPlaceDetectionClient(activityCompat, null);
     }
 
     public void checkLocationPermission(Activity activityCompat) {
@@ -54,31 +40,29 @@ public class BaseActivity extends AppCompatActivity {
         }
     }
 
-    private void updateLocation() {
+    public void updateLocation() {
         try {
-            Task<PlaceLikelihoodBufferResponse> placeResult = mPlaceDetectionClient.getCurrentPlace(null);
-            placeResult.addOnSuccessListener(new OnSuccessListener<PlaceLikelihoodBufferResponse>() {
-                @Override
-                public void onSuccess(PlaceLikelihoodBufferResponse placeLikelihoods) {
-                    if (placeLikelihoods.getCount() > 0) {
-                        PlaceLikelihood likelihood = placeLikelihoods.get(0);
-                        LatLng latLng = likelihood.getPlace().getLatLng();
-                        latitude=latLng.latitude;
-                        longitude=latLng.longitude;
-                        Log.i(TAG, "Latitude:" + latitude + " Longitude:" + longitude);
-                        placeLikelihoods.release();
-                    }
-                }
-            });
-            placeResult.addOnFailureListener(new OnFailureListener() {
-                @Override
-                public void onFailure(@NonNull Exception e) {
-                    Log.e(TAG, "Message : " + e.getMessage());
-                    e.printStackTrace();
-                }
-            });
+            FusedLocationProviderClient mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+            mFusedLocationClient.getLastLocation()
+                    .addOnSuccessListener(new OnSuccessListener<Location>() {
+                        @Override
+                        public void onSuccess(Location location) {
+                            // GPS location can be null if GPS is switched off
+                            if (location != null) {
+                                latitude = location.getLatitude();
+                                longitude = location.getLongitude();
+                            }
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            Log.d(TAG, "Error trying to get last GPS location");
+                            e.printStackTrace();
+                        }
+                    });
         } catch (SecurityException security) {
-            Log.e(TAG, ""+security.getLocalizedMessage());
+            Log.e(TAG, "" + security.getLocalizedMessage());
             security.printStackTrace();
         }
     }

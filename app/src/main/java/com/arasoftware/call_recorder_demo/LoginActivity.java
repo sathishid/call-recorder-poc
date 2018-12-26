@@ -17,17 +17,16 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.arasoftware.call_recorder_demo.models.User;
-import com.arasoftware.call_recorder_demo.services.ApiService;
+import com.arasoftware.call_recorder_demo.services.ApiClient;
 
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
-import retrofit2.Retrofit;
 
-import static com.arasoftware.call_recorder_demo.utils.AppContants.BASE_URL;
 import static com.arasoftware.call_recorder_demo.utils.AppContants.CurrentUser;
 
 /**
@@ -65,7 +64,11 @@ public class LoginActivity extends AppCompatActivity {
         mEmailSignInButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                attemptLogin();
+                try {
+                    attemptLogin();
+                } catch (Exception exception) {
+                    Toast.makeText(LoginActivity.this, "" + exception.getLocalizedMessage() + "", Toast.LENGTH_LONG).show();
+                }
             }
         });
 
@@ -129,28 +132,21 @@ public class LoginActivity extends AppCompatActivity {
             // Show a progress spinner, and kick off a background task to
             // perform the user login attempt.
             showProgress(true);
-            Retrofit retrofit = new Retrofit.Builder()
-                    .baseUrl(BASE_URL)
-                    .build();
-            ApiService callService = retrofit.create(ApiService.class);
-
-            callService.validateUser(email, password)
+            ApiClient.getApiClient().getCallService()
+                    .validateUser(email, password)
                     .enqueue(new Callback<ResponseBody>() {
                         @Override
                         public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
 
                             try {
-                                User user = User.fromJson(response.body().string());
-                                if (user == null) {
-                                    Snackbar.make(mEmailView, R.string.invalid_credential, Snackbar.LENGTH_LONG).show();
-                                    return;
-                                }
-                                CurrentUser = user;
-                                CurrentUser.setUserId(user.getUserId());
+                                CurrentUser = User.fromJson(response.body().string());
                                 showProgress(false);
-                                setResult(Activity.RESULT_OK);
-                                finish();
-
+                                if (CurrentUser == null) {
+                                    Snackbar.make(mEmailView, R.string.invalid_credential, Snackbar.LENGTH_LONG).show();
+                                } else {
+                                    setResult(Activity.RESULT_OK);
+                                    finish();
+                                }
                             } catch (Exception exception) {
                                 Snackbar.make(mEmailView, "Unable to login", Snackbar.LENGTH_LONG).show();
                             }
